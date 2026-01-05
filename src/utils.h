@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define SERIAL_BUFFSIZE 64
 #define CLAMP(value, lower, upper)                                             \
   ((value) < (lower) ? (lower) : ((value) > (upper) ? (upper) : (value)))
 #define CYCLE(value, len)                                                      \
@@ -62,14 +63,21 @@
 
 static inline uint32_t time_ms_boot(void) { return us_to_ms(time_us_64()); }
 
-static inline void input_callback(void *param) {
-  int *char_ptr = (int *)param;
-  int c = getchar_timeout_us(0);
-  if (c != PICO_ERROR_TIMEOUT) *char_ptr = c;
+static inline void handle_input(char *last_chars) {
+  if (*last_chars == 'r') rom_reset_usb_boot_extra(-1, 0, false);
 }
 
-static inline void handle_input(int *last_char) {
-  if (*last_char == 'r') rom_reset_usb_boot_extra(-1, 0, false);
+static inline void input_callback(void *param) {
+  char *buffer = (char *)param;
+  int i = 0;
+  int c;
+  while (i < SERIAL_BUFFSIZE - 1 &&
+         (c = getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
+    if (c == '\r' || c == '\n') continue;
+    buffer[i++] = (char)c;
+  }
+  buffer[i] = '\0';
+  handle_input(buffer);
 }
 
 static inline int string_startswith(const char *str, const char *prefix) {
